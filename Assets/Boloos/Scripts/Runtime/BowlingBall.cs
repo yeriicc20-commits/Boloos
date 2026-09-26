@@ -37,7 +37,15 @@ namespace Boloos
             // Una bola de 7 kg a 8 m/s atraviesa un bolo fino si la deteccion es discreta.
             m_body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             m_body.interpolation = RigidbodyInterpolation.Interpolate;
+
+            // Sin esto la bola no tiene efecto. Unity limita la velocidad angular
+            // a 7 rad/s por defecto, y solo rodar a 8 m/s con 10,8 cm de radio ya
+            // pide 74 rad/s: el giro se recortaba entero y la bola iba recta.
+            m_body.maxAngularVelocity = MaxAngularVelocity;
         }
+
+        /// <summary>Tope de giro, en rad/s. Muy por encima de lo que pide rodar.</summary>
+        public const float MaxAngularVelocity = 150f;
 
         /// <summary>Lanza la bola con una velocidad y un efecto lateral (revoluciones).</summary>
         public void Launch(Vector3 velocity, float sideSpinRps = 0f)
@@ -51,7 +59,11 @@ namespace Boloos
             rb.useGravity = true;
             SetVelocity(rb, velocity);
 
-            // Rodadura natural mas el efecto que hace curvar la bola.
+            rb.maxAngularVelocity = MaxAngularVelocity;
+
+            // Rodadura natural mas el efecto que hace curvar la bola. El giro
+            // sobre el eje vertical es el que engancha con la pista y la curva
+            // al llegar a la zona seca.
             Vector3 roll = Vector3.Cross(Vector3.up, velocity) / Mathf.Max(radius, 0.0001f);
             rb.angularVelocity = roll + Vector3.up * sideSpinRps * Mathf.PI * 2f;
         }

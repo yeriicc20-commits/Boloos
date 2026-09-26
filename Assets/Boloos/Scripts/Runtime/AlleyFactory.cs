@@ -112,7 +112,7 @@ namespace Boloos
         public class Palette
         {
             public Material lane, approach, gutter, pin, pit, metal, machine, rubber, foulLine, arrow, carpet, wall, neon;
-            public PhysMat lanePhysics, ballPhysics, pinPhysics, gutterPhysics;
+            public PhysMat lanePhysics, dryLanePhysics, ballPhysics, pinPhysics, gutterPhysics;
             public Mesh pinMesh, pinColliderMesh;
             public Vector2[] pinProfile;
         }
@@ -143,6 +143,7 @@ namespace Boloos
 
             // Fisica: la pista va aceitada, la canaleta agarra un poco mas.
             p.lanePhysics = r.Track(NewPhysics("BoloosLanePhysics", 0.04f, 0.03f, 0f));
+            p.dryLanePhysics = r.Track(NewPhysics("BoloosDryLanePhysics", 0.26f, 0.22f, 0f));
             p.ballPhysics = r.Track(NewPhysics("BoloosBallPhysics", 0.14f, 0.10f, 0.02f));
             p.pinPhysics = r.Track(NewPhysics("BoloosPinPhysics", 0.28f, 0.22f, 0.30f));
             p.gutterPhysics = r.Track(NewPhysics("BoloosGutterPhysics", 0.22f, 0.18f, 0.05f));
@@ -197,7 +198,19 @@ namespace Boloos
                 new Vector2(1f, 1f), true, "BoloosLaneBed"));
             GameObject bed = Piece("Superficie", laneGo.transform,
                 new Vector3(0f, -AlleySpec.LaneThickness * 0.5f, laneEnd * 0.5f), bedMesh, p.lane);
-            AddBox(bed, new Vector3(AlleySpec.LaneWidth, AlleySpec.LaneThickness, laneEnd), Vector3.zero, p.lanePhysics);
+
+            // Dos colliders sobre la misma malla: el tramo engrasado, donde la
+            // bola patina recta, y el seco del final, donde el efecto agarra y
+            // la curva. Es lo que hace que un lanzamiento con efecto se note.
+            float oiled = Mathf.Min(AlleySpec.OiledLength, laneEnd);
+            float dry = laneEnd - oiled;
+            AddBox(bed, new Vector3(AlleySpec.LaneWidth, AlleySpec.LaneThickness, oiled),
+                new Vector3(0f, 0f, oiled * 0.5f - laneEnd * 0.5f), p.lanePhysics);
+            if (dry > 0.01f)
+            {
+                AddBox(bed, new Vector3(AlleySpec.LaneWidth, AlleySpec.LaneThickness, dry),
+                    new Vector3(0f, 0f, laneEnd * 0.5f - dry * 0.5f), p.dryLanePhysics);
+            }
 
             // ---- canaletas a ambos lados ----
             Vector2[] section = MeshBuilder.GutterSection(AlleySpec.GutterWidth, AlleySpec.GutterDepth, 12);
@@ -263,17 +276,32 @@ namespace Boloos
             return lane;
         }
 
+        /// <summary>
+        /// El foso y todo lo que lo tapa. La clave es que quede cerrado: si
+        /// entre los bolos y la mascara queda hueco, desde la aproximacion se ve
+        /// la maquina y el vacio de detras.
+        ///
+        /// La caja se cierra por los cuatro lados: paredes laterales, fondo,
+        /// techo y el panel de mascara delante, que cubre el ancho entero de la
+        /// pista mas su hueco de retorno, para que los paneles de pistas
+        /// contiguas encajen sin dejar rendija.
+        /// </summary>
         static void BuildPitArea(AlleyBuildResult r, Palette p, Transform parent, float laneEnd)
         {
             var pit = new GameObject("Foso");
             pit.transform.SetParent(parent, false);
 
             float width = AlleySpec.LaneWidth + AlleySpec.GutterWidth * 2f;
+            float outer = width + 0.24f;
+            float pitCenter = laneEnd + AlleySpec.PitLength * 0.5f;
+            float enclosure = AlleySpec.MaskingTop + AlleySpec.PitDrop;
+            float enclosureY = (AlleySpec.MaskingTop - AlleySpec.PitDrop) * 0.5f;
+            float depth = AlleySpec.PitLength + 0.2f;
 
             // suelo del foso, por debajo del nivel de la pista
             Mesh floor = r.Track(MeshBuilder.Box(new Vector3(width, 0.08f, AlleySpec.PitLength), "BoloosPitFloor"));
             GameObject floorGo = Piece("Suelo del foso", pit.transform,
-                new Vector3(0f, -AlleySpec.PitDrop, laneEnd + AlleySpec.PitLength * 0.5f), floor, p.pit);
+                new Vector3(0f, -AlleySpec.PitDrop, pitCenter), floor, p.pit);
             AddBox(floorGo, new Vector3(width, 0.08f, AlleySpec.PitLength), Vector3.zero, p.gutterPhysics);
 
             // colchon del fondo: para la bola y los bolos que salen disparados
@@ -292,10 +320,56 @@ namespace Boloos
                 AddBox(k, new Vector3(0.06f, 0.75f, 2.4f), Vector3.zero, p.pinPhysics);
             }
 
-            // capucha del pinsetter: la caja que tapa la maquina de bolos
-            Mesh hood = r.Track(MeshBuilder.Box(new Vector3(width + 0.2f, 1.1f, AlleySpec.PitLength + 0.5f), "BoloosPinsetterHood"));
-            Piece("Capucha del pinsetter", pit.transform,
-                new Vector3(0f, 1.35f, laneEnd + AlleySpec.PitLength * 0.5f), hood, p.machine);
+            // ---- cerramiento del foso ----
+            Mesh sideWall = r.Track(MeshBuilder.Box(new Vector3(0.10f, enclosure, depth), "BoloosPitWall"));
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? -1f : 1f;
+                GameObject wall = Piece(side < 0 ? "Pared izquierda del foso" : "Pared derecha del foso",
+                    pit.transform, new Vector3(side * (outer * 0.5f), enclosureY, pitCenter), sideWall, p.pit);
+                AddBox(wall, new Vector3(0.10f, enclosure, depth), Vector3.zero, p.pinPhysics);
+            }
+
+            Mesh back = r.Track(MeshBuilder.Box(new Vector3(outer + 0.1f, enclosure, 0.12f), "BoloosPitBack"));
+            GameObject backGo = Piece("Fondo del foso", pit.transform,
+                new Vector3(0f, enclosureY, laneEnd + AlleySpec.PitLength + 0.06f), back, p.pit);
+            AddBox(backGo, new Vector3(outer + 0.1f, enclosure, 0.12f), Vector3.zero, p.pinPhysics);
+
+            Mesh roof = r.Track(MeshBuilder.Box(new Vector3(outer + 0.1f, 0.10f, depth), "BoloosPitRoof"));
+            Piece("Techo del foso", pit.transform,
+                new Vector3(0f, AlleySpec.MaskingTop + 0.05f, pitCenter), roof, p.pit);
+
+            // ---- mascara: el panel que tapa la maquina ----
+            // Cubre la pista mas su hueco de retorno, asi que el de la pista de
+            // al lado continua justo donde acaba este.
+            float maskHeight = AlleySpec.MaskingTop - AlleySpec.MaskingBottom;
+            Mesh mask = r.Track(MeshBuilder.Box(new Vector3(AlleySpec.LanePitch + 0.06f, maskHeight, 0.10f), "BoloosMaskingUnit"));
+            GameObject maskGo = Piece("Mascara", pit.transform,
+                new Vector3(AlleySpec.ReturnGap * 0.5f, (AlleySpec.MaskingBottom + AlleySpec.MaskingTop) * 0.5f, laneEnd + 0.05f),
+                mask, p.machine);
+            AddBox(maskGo, new Vector3(AlleySpec.LanePitch + 0.06f, maskHeight, 0.10f), Vector3.zero, p.pinPhysics);
+
+            // Faldon a los lados del carril de retorno: cierra por debajo de la
+            // mascara el trozo de hueco por el que si no se veria el elevador.
+            float machineX = AlleySpec.LaneWidth * 0.5f + AlleySpec.GutterWidth + AlleySpec.ReturnGap * 0.5f;
+            float gapStart = width * 0.5f + 0.12f;
+            float gapEnd = AlleySpec.ReturnGap * 0.5f + AlleySpec.LanePitch * 0.5f;
+            float trackHalf = TrackWidth * 0.5f + 0.04f;
+
+            AddSkirt(r, p, pit.transform, gapStart, machineX - trackHalf, laneEnd);
+            AddSkirt(r, p, pit.transform, machineX + trackHalf, gapEnd, laneEnd);
+        }
+
+        /// <summary>Trozo de faldon entre dos X, del suelo hasta la mascara.</summary>
+        static void AddSkirt(AlleyBuildResult r, Palette p, Transform parent, float fromX, float toX, float laneEnd)
+        {
+            float width = toX - fromX;
+            if (width <= 0.02f) return;
+
+            Mesh mesh = r.Track(MeshBuilder.Box(new Vector3(width, AlleySpec.MaskingBottom, 0.10f), "BoloosMaskSkirt"));
+            GameObject skirt = Piece("Faldon", parent,
+                new Vector3((fromX + toX) * 0.5f, AlleySpec.MaskingBottom * 0.5f, laneEnd + 0.05f), mesh, p.machine);
+            AddBox(skirt, new Vector3(width, AlleySpec.MaskingBottom, 0.10f), Vector3.zero, p.pinPhysics);
         }
 
         static PinSet BuildPins(AlleyBuildResult r, Palette p, Transform parent)

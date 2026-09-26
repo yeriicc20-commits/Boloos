@@ -31,7 +31,7 @@ borrarlos antes de construir la bolera de verdad.
 | Aproximacion | 16 pies de tarima antes de la linea de falta |
 | Bolos | Torneados a partir del perfil reglamentario, 1,53 kg, centro de masas bajo |
 | Bola | Esfera de 8,5" con los tres agujeros perforados en la malla, 7,26 kg |
-| Foso | Suelo hundido, colchon del fondo, kickbacks y capucha del pinsetter |
+| Foso | Cerrado por los cuatro lados y con mascara delante: no se ve la maquina |
 | Retorno | Foso con trigger, acelerador, elevador, carril en U y estante de 5 bolas |
 
 ## Los scripts
@@ -99,6 +99,25 @@ Ojo con una cosa: si construyes la bolera en tiempo de ejecucion (que es lo que
 hace `BoloosMatch`), los materiales se crean por codigo y el shader tiene que
 estar incluido en la build. De eso se encarga solo el apartado siguiente.
 
+## Menu, ajustes y HUD
+
+`BoloosMenu` monta toda la interfaz por codigo sobre un canvas escalado a
+1920x1080, asi que se ve nitida en cualquier resolucion sin prefabs ni escena
+de interfaz aparte. Se pone el componente en un objeto vacio y ya esta.
+
+- **Menu principal** con JUGAR, AJUSTES y SALIR.
+- **Ajustes**: sensibilidad del raton, volumen, calidad, sincronizacion
+  vertical, pantalla completa y **mostrar FPS**. Se guardan en PlayerPrefs y se
+  aplican al arrancar, asi que la partida empieza como se dejo.
+- **Pausa** con Esc, que congela el juego y suelta el raton.
+- **HUD** con pista, frame, tiro, puntuacion, bolos en pie, barra de fuerza
+  mientras se carga el lanzamiento, punto de mira y el aviso de que toca hacer.
+- **Contador de FPS** arriba a la derecha, con los milisegundos por frame y en
+  verde, ambar o rojo segun como vaya. Se enciende desde Ajustes.
+
+Los selectores de los ajustes son botones, no `Dropdown` ni `Toggle`: asi se
+montan enteros por codigo sin depender de plantillas de prefab.
+
 ## Si todo se ve rosa fucsia
 
 El rosa de Unity no es una textura que falte (eso sale blanco): es un material
@@ -135,6 +154,18 @@ La forma limpia de no pisar el tercer caso es construir la bolera desde el
 editor (**Boloos > Construir bolera**) en vez de en tiempo de ejecucion: asi los
 materiales quedan guardados como assets en `Assets/Boloos/Generated` y sus
 shaders entran solos en la build.
+
+## El efecto de la bola
+
+Si la bola sale recta por mucho efecto que le pongas, la causa es el tope de
+velocidad angular de Unity: `Rigidbody.maxAngularVelocity` vale 7 rad/s por
+defecto, y solo rodar a 8 m/s con 10,8 cm de radio ya pide 74 rad/s. El giro se
+recortaba entero. `BowlingBall` lo sube a 150 rad/s al despertar.
+
+Y para que el efecto se note donde debe, la pista lleva dos materiales de
+fisica sobre la misma malla: los primeros 42 pies van engrasados (friccion
+0,04) y los ultimos metros secos (0,26). La bola patina recta por el aceite y
+agarra al llegar a la zona seca, que es justo donde curva hacia los bolos.
 
 ## Los agujeros de la bola
 

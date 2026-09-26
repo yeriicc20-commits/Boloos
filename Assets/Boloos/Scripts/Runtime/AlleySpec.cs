@@ -24,6 +24,12 @@ namespace Boloos
         public const int BoardCount = 39;
         public const float BoardWidth = LaneWidth / BoardCount;
 
+        /// <summary>
+        /// Longitud engrasada desde la falta. Los ultimos metros van secos, y es
+        /// justo ahi donde la bola con efecto agarra y curva hacia los bolos.
+        /// </summary>
+        public const float OiledLength = 42f * Foot;
+
         // ---------- Canaletas ----------
         public const float GutterWidth = 9.25f * Inch;
         public const float GutterDepth = 1.875f * Inch;
@@ -55,6 +61,15 @@ namespace Boloos
         public const float FingerHoleDiameter = 1.0f * Inch;
         public const float ThumbHoleDiameter = 1.22f * Inch;
         public const float HoleDepth = 2.2f * Inch;
+
+        // ---------- Mascara del fondo ----------
+        /// <summary>
+        /// Altura a la que arranca el panel que tapa el fondo. Por debajo pasan
+        /// la bola, los bolos y el carril de retorno; por encima no se ve nada
+        /// de la maquina.
+        /// </summary>
+        public const float MaskingBottom = 0.70f;
+        public const float MaskingTop = 2.40f;
 
         // ---------- Distribucion del local ----------
         /// <summary>Hueco entre pistas donde va el retorno de bolas.</summary>
