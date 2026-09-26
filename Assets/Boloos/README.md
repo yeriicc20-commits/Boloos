@@ -55,6 +55,31 @@ borrarlos antes de construir la bolera de verdad.
 
 - `BoloosBuilderWindow` — la ventana de construccion.
 - `BoloosSceneAudit` — el detector de placeholders.
+- `BoloosMaterialRepair` — el reparador de materiales rosas.
+
+## Si todo se ve rosa fucsia
+
+El rosa de Unity no es una textura que falte (eso sale blanco): es un material
+cuyo shader es nulo o no compilo, pintado con `Hidden/InternalErrorShader`.
+Hay dos causas, y se distinguen por donde se ve el rosa:
+
+- **Rosa tambien en el editor** → el material usa un shader de otro pipeline,
+  por ejemplo `Standard` en un proyecto URP. Menu
+  **Boloos > Reparar materiales rosas**: cambia el shader al del pipeline
+  activo conservando color, textura y acabado. (Unity trae su propio
+  conversor en *Window > Rendering > Render Pipeline Converter*; el de aqui
+  cubre ademas los materiales creados por codigo.)
+- **Rosa solo en la build, bien en el editor** → el shader se esta quedando
+  fuera al compilar. `Shader.Find` solo encuentra shaders incluidos en la
+  build, y un material creado en tiempo de ejecucion no lo referencia desde
+  ningun asset, asi que Unity lo descarta. Menu
+  **Boloos > Incluir shaders en la build**, que lo anade a *Always Included
+  Shaders*, y vuelve a compilar.
+
+La forma limpia de evitar el segundo caso es construir la bolera desde el
+editor (**Boloos > Construir bolera**) en vez de en tiempo de ejecucion: asi los
+materiales quedan guardados como assets en `Assets/Boloos/Generated` y sus
+shaders entran solos en la build.
 
 ## Los agujeros de la bola
 

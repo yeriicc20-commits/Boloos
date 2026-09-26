@@ -29,6 +29,17 @@ namespace Boloos
                 if (s_lit == null) s_lit = Shader.Find("Standard");
                 if (s_lit == null) s_lit = Shader.Find("Universal Render Pipeline/Lit");
                 if (s_lit == null) s_lit = Shader.Find("Diffuse");
+
+                if (s_lit == null)
+                {
+                    // Shader.Find solo encuentra shaders incluidos en la build. Si
+                    // los materiales se crean en tiempo de ejecucion, ningun asset
+                    // referencia el shader, se queda fuera al compilar y todo sale
+                    // rosa. Se arregla con Boloos > Incluir shaders en la build.
+                    Debug.LogError("[Boloos] No se encuentra el shader del pipeline activo. " +
+                                   "En una build hay que anadirlo a Always Included Shaders: " +
+                                   "menu Boloos > Incluir shaders en la build.");
+                }
                 return s_lit;
             }
         }
@@ -75,6 +86,17 @@ namespace Boloos
                 m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             }
             return m;
+        }
+
+        /// <summary>
+        /// Un material se ve rosa cuando su shader es nulo o es el de error de
+        /// Unity. Sirve para detectarlo desde el editor y desde el juego.
+        /// </summary>
+        public static bool IsBroken(Material material)
+        {
+            if (material == null) return true;
+            if (material.shader == null) return true;
+            return material.shader.name == "Hidden/InternalErrorShader";
         }
 
         static void SetFloatIfPresent(Material m, string property, float value)
