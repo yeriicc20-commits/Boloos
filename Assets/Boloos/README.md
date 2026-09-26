@@ -30,7 +30,7 @@ borrarlos antes de construir la bolera de verdad.
 | Flechas | Las 7 flechas de mira en las tablas 5, 10, 15, 20, 25, 30 y 35 |
 | Aproximacion | 16 pies de tarima antes de la linea de falta |
 | Bolos | Torneados a partir del perfil reglamentario, 1,53 kg, centro de masas bajo |
-| Bola | Esfera de 8,5" con los tres agujeros perforados, 7,26 kg |
+| Bola | Esfera de 8,5" con los tres agujeros perforados en la malla, 7,26 kg |
 | Foso | Suelo hundido, colchon del fondo, kickbacks y capucha del pinsetter |
 | Retorno | Foso con trigger, acelerador, elevador, carril en U y estante de 5 bolas |
 
@@ -55,6 +55,18 @@ borrarlos antes de construir la bolera de verdad.
 
 - `BoloosBuilderWindow` — la ventana de construccion.
 - `BoloosSceneAudit` — el detector de placeholders.
+
+## Los agujeros de la bola
+
+No son un truco visual: `AlleyFactory.DrillHoles` quita los triangulos que caen
+en la boca de cada agujero, cose el borde irregular que queda a un aro circular
+limpio y baja las paredes del taladro hasta el fondo. Las paredes van a una
+segunda submalla con material oscuro, porque un agujero del color de la bola no
+parece un agujero.
+
+La empunadura es la convencional: los dos dedos a 2,4" entre si y el pulgar a
+4,25", medido sobre la superficie. Si los acercas mas, las bocas se solapan y el
+corte se pisa a si mismo.
 
 ## Como funciona el retorno de bolas
 

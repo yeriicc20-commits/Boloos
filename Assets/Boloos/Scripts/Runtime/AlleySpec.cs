@@ -54,7 +54,7 @@ namespace Boloos
         public const float BallMass = 7.26f;
         public const float FingerHoleDiameter = 1.0f * Inch;
         public const float ThumbHoleDiameter = 1.22f * Inch;
-        public const float HoleDepth = 2.4f * Inch;
+        public const float HoleDepth = 2.2f * Inch;
 
         // ---------- Distribucion del local ----------
         /// <summary>Hueco entre pistas donde va el retorno de bolas.</summary>

@@ -50,6 +50,19 @@ namespace Boloos
         const float TrackWidth = 0.34f;
         static float BallTravelY { get { return TrackTopY - TrackDepth + AlleySpec.BallRadius; } }
 
+        // Separacion entre los dos railes del estante, y altura a la que deben
+        // quedar para que la bola descanse encima en vez de hundirse en el cuerpo.
+        const float RailHalfGap = 0.085f;
+        const float RailHeight = 0.06f;
+        static float RailTopY
+        {
+            get
+            {
+                float r = AlleySpec.BallRadius;
+                return BallTravelY - Mathf.Sqrt(r * r - RailHalfGap * RailHalfGap);
+            }
+        }
+
         static readonly Color[] BallColors =
         {
             new Color(0.10f, 0.13f, 0.20f),
@@ -317,8 +330,12 @@ namespace Boloos
             machine.transform.SetParent(parent, false);
             machine.transform.localPosition = new Vector3(x, 0f, 0f);
 
-            // ---- carril en U desde el foso hasta el estante ----
-            float trackStart = -1.4f;
+            // ---- estante de bolas ----
+            Vector3 rackEntry;
+            BallRack rack = BuildRack(r, p, machine.transform, out rackEntry);
+
+            // ---- carril en U: del foso hasta donde empieza el estante ----
+            float trackStart = rack.transform.localPosition.z + RackDepth + 0.02f;
             float trackLength = laneEnd + AlleySpec.PitLength - trackStart;
             Vector2[] channel = MeshBuilder.GutterSection(TrackWidth, TrackDepth, 10);
             Mesh trackMesh = r.Track(MeshBuilder.ExtrudeSection(channel, trackLength, "BoloosReturnTrack"));
@@ -361,10 +378,6 @@ namespace Boloos
             accelSpin.axis = Vector3.up;
             accelSpin.rpm = 260f;
             wheels.Add(accelSpin);
-
-            // ---- estante de bolas ----
-            Vector3 rackEntry;
-            BallRack rack = BuildRack(r, p, machine.transform, out rackEntry);
 
             // ---- trigger del foso ----
             var pitTrigger = new GameObject("Foso (trigger)");
@@ -413,6 +426,10 @@ namespace Boloos
             if (s.buildBalls) BuildBalls(r, p, s, rack);
         }
 
+        /// <summary>Longitud del estante desde su origen hacia +Z.</summary>
+        const float RackDepth = (AlleySpec.BallDiameter + 0.02f) * 4f + 0.15f;
+        const float RackFront = -0.25f;
+
         static BallRack BuildRack(AlleyBuildResult r, Palette p, Transform parent, out Vector3 entryPoint)
         {
             var rackGo = new GameObject("Estante de bolas");
@@ -423,25 +440,30 @@ namespace Boloos
 
             float slotSpacing = AlleySpec.BallDiameter + 0.02f;
             int slotCount = 5;
+            float length = RackDepth - RackFront;
+            float centerZ = (RackFront + RackDepth) * 0.5f;
+            float bodyHeight = RailTopY - RailHeight;
 
-            // cuna: dos railes en V donde descansan las bolas
-            Mesh railMesh = r.Track(MeshBuilder.Box(new Vector3(0.05f, 0.06f, slotSpacing * slotCount + 0.3f), "BoloosRackRail"));
+            // cuna: dos railes sobre los que la bola apoya
+            Mesh railMesh = r.Track(MeshBuilder.Box(new Vector3(0.05f, RailHeight, length), "BoloosRackRail"));
             for (int i = 0; i < 2; i++)
             {
                 float side = i == 0 ? -1f : 1f;
                 Piece(side < 0 ? "Rail izquierdo" : "Rail derecho", rackGo.transform,
-                    new Vector3(side * 0.085f, TrackTopY - 0.02f, slotSpacing * slotCount * 0.5f - 0.2f), railMesh, p.metal);
+                    new Vector3(side * RailHalfGap, RailTopY - RailHeight * 0.5f, centerZ), railMesh, p.metal);
             }
 
-            // cuerpo y capucha, la forma reconocible del retorno
-            Mesh body = r.Track(MeshBuilder.Box(new Vector3(0.42f, TrackTopY - 0.05f, slotSpacing * slotCount + 0.4f), "BoloosRackBody"));
+            // cuerpo, por debajo de la bola para que no la tape
+            Mesh body = r.Track(MeshBuilder.Box(new Vector3(0.42f, bodyHeight, length), "BoloosRackBody"));
             GameObject bodyGo = Piece("Cuerpo", rackGo.transform,
-                new Vector3(0f, (TrackTopY - 0.05f) * 0.5f, slotSpacing * slotCount * 0.5f - 0.2f), body, p.machine);
-            AddBox(bodyGo, new Vector3(0.42f, TrackTopY - 0.05f, slotSpacing * slotCount + 0.4f), Vector3.zero, null);
+                new Vector3(0f, bodyHeight * 0.5f, centerZ), body, p.machine);
+            AddBox(bodyGo, new Vector3(0.42f, bodyHeight, length), Vector3.zero, null);
 
+            // capucha sobre la entrada: la bola sale de debajo y baja la fila
             Vector2[] arc = MeshBuilder.ArcSection(0.30f, 180f, 0f, 16);
-            Mesh hoodMesh = r.Track(MeshBuilder.ExtrudeSection(arc, 0.85f, "BoloosRackHood"));
-            Piece("Capucha", rackGo.transform, new Vector3(0f, TrackTopY - 0.04f, -0.4f), hoodMesh, p.machine);
+            Mesh hoodMesh = r.Track(MeshBuilder.ExtrudeSection(arc, 0.55f, "BoloosRackHood"));
+            Piece("Capucha", rackGo.transform,
+                new Vector3(0f, RailTopY - 0.02f, RackDepth - 0.55f), hoodMesh, p.machine);
 
             // huecos: el 0 es el de delante
             rack.slots = new Transform[slotCount];
@@ -449,13 +471,12 @@ namespace Boloos
             {
                 var slot = new GameObject("Hueco " + i);
                 slot.transform.SetParent(rackGo.transform, false);
-                slot.transform.localPosition = new Vector3(0f, TrackTopY - TrackDepth + AlleySpec.BallRadius, i * slotSpacing);
+                slot.transform.localPosition = new Vector3(0f, BallTravelY, i * slotSpacing);
                 rack.slots[i] = slot.transform;
             }
 
-            // la maquina entrega la bola por detras del ultimo hueco
-            entryPoint = rackGo.transform.localPosition +
-                         new Vector3(0f, TrackTopY - TrackDepth + AlleySpec.BallRadius, (slotCount - 1) * slotSpacing);
+            // la maquina entrega la bola en el ultimo hueco, bajo la capucha
+            entryPoint = rackGo.transform.localPosition + new Vector3(0f, BallTravelY, (slotCount - 1) * slotSpacing);
             return rack;
         }
 
@@ -472,8 +493,8 @@ namespace Boloos
         }
 
         /// <summary>
-        /// Bola reglamentaria: esfera de 8,5" con los tres agujeros perforados
-        /// de verdad (hundido en la superficie mas el taladro interior oscuro).
+        /// Bola reglamentaria: esfera de 8,5", 7,26 kg y los tres agujeros
+        /// perforados de verdad sobre la malla.
         /// </summary>
         public static BowlingBall CreateBall(AlleyBuildResult r, Color color, string name)
         {
@@ -485,15 +506,6 @@ namespace Boloos
             var go = new GameObject(name);
 
             float radius = AlleySpec.BallRadius;
-            Mesh mesh = MeshBuilder.Sphere(radius, 48, 32, "BoloosBallMesh");
-
-            // Direcciones de los tres agujeros: pulgar detras, dos dedos delante.
-            Vector3[] holes =
-            {
-                HoleDirection(26f, 180f),
-                HoleDirection(20f, -14f),
-                HoleDirection(20f, 14f)
-            };
             float[] holeRadius =
             {
                 AlleySpec.ThumbHoleDiameter * 0.5f,
@@ -501,30 +513,20 @@ namespace Boloos
                 AlleySpec.FingerHoleDiameter * 0.5f
             };
 
-            DrillDimples(mesh, radius, holes, holeRadius);
+            Mesh mesh = MeshBuilder.Sphere(radius, 64, 40, "BoloosBallMesh");
+            DrillHoles(mesh, radius, GripHoles, holeRadius, AlleySpec.HoleDepth);
             r.Track(mesh);
 
             var mf = go.AddComponent<MeshFilter>();
             mf.sharedMesh = mesh;
-            var mr = go.AddComponent<MeshRenderer>();
 
             Texture2D tex = r.Track(ProceduralTextures.Ball(color));
             Material ballMat = r.Track(AlleyMaterials.Create("BoloosBall_" + name, Color.white, 0.92f, 0f, tex));
-            mr.sharedMaterial = ballMat;
-
             Material boreMat = p != null ? p.rubber
-                : r.Track(AlleyMaterials.Create("BoloosBore", new Color(0.05f, 0.05f, 0.05f), 0.2f, 0f));
+                : r.Track(AlleyMaterials.Create("BoloosBore", new Color(0.05f, 0.05f, 0.06f), 0.2f, 0f));
 
-            for (int i = 0; i < holes.Length; i++)
-            {
-                Mesh bore = r.Track(MeshBuilder.Tube(holeRadius[i], AlleySpec.HoleDepth, 18, true, true, "BoloosBore"));
-                var boreGo = new GameObject("Agujero " + (i + 1));
-                boreGo.transform.SetParent(go.transform, false);
-                boreGo.transform.localPosition = holes[i] * (radius - DimpleDepth - AlleySpec.HoleDepth);
-                boreGo.transform.localRotation = Quaternion.FromToRotation(Vector3.up, holes[i]);
-                boreGo.AddComponent<MeshFilter>().sharedMesh = bore;
-                boreGo.AddComponent<MeshRenderer>().sharedMaterial = boreMat;
-            }
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sharedMaterials = new[] { ballMat, boreMat };
 
             var col = go.AddComponent<SphereCollider>();
             col.radius = radius;
@@ -538,35 +540,165 @@ namespace Boloos
             return ball;
         }
 
-        const float DimpleDepth = 0.011f;
-
-        /// <summary>Hunde la superficie alrededor de cada agujero para que se vea perforado.</summary>
-        static void DrillDimples(Mesh mesh, float radius, Vector3[] directions, float[] holeRadius)
+        /// <summary>
+        /// Empunadura convencional: los dos dedos separados 2,4" entre si y el
+        /// pulgar a 4,25", medido sobre la superficie de la bola.
+        /// </summary>
+        static readonly Vector3[] GripHoles =
         {
-            Vector3[] verts = mesh.vertices;
-            for (int i = 0; i < verts.Length; i++)
+            HoleDirection(57.3f, 180f),
+            HoleDirection(16.2f, -90f),
+            HoleDirection(16.2f, 90f)
+        };
+
+        /// <summary>
+        /// Perfora los agujeros de verdad, en vez de disimularlos: quita los
+        /// triangulos que caen en la boca, cose el borde irregular que queda a un
+        /// aro circular limpio y baja las paredes del taladro hasta el fondo.
+        /// No hace falta ordenar el borde, cada arista frontera genera su propia
+        /// banda, pared y trozo de tapa.
+        ///
+        /// Las paredes van al submalla 1 para poder darles un material oscuro: sin
+        /// eso el agujero se ve del color de la bola y no parece un agujero.
+        /// </summary>
+        static void DrillHoles(Mesh mesh, float radius, Vector3[] directions, float[] holeRadius, float depth)
+        {
+            var verts = new List<Vector3>(mesh.vertices);
+            var uvs = new List<Vector2>(mesh.uv);
+            var surface = new List<int>(mesh.triangles);
+            var bore = new List<int>();
+            int surfaceCount = verts.Count;
+
+            for (int h = 0; h < directions.Length; h++)
             {
-                Vector3 n = verts[i].normalized;
-                float sink = 0f;
+                Vector3 d = directions[h];
+                float rh = holeRadius[h];
+                float cosMouth = Mathf.Cos(Mathf.Asin(Mathf.Clamp01(rh / radius)));
 
-                for (int h = 0; h < directions.Length; h++)
+                // Vertices dentro de la boca. Solo los de la esfera original: los
+                // que anaden los taladros anteriores no se tocan.
+                var inside = new bool[verts.Count];
+                for (int i = 0; i < surfaceCount; i++)
                 {
-                    float angle = Vector3.Angle(n, directions[h]) * Mathf.Deg2Rad;
-                    float mouth = Mathf.Asin(Mathf.Clamp01(holeRadius[h] / radius)) * 1.9f;
-                    if (angle >= mouth) continue;
-
-                    float t = 1f - angle / mouth;
-                    sink = Mathf.Max(sink, Mathf.SmoothStep(0f, 1f, t) * DimpleDepth);
+                    inside[i] = Vector3.Dot(verts[i].normalized, d) > cosMouth;
                 }
 
-                if (sink > 0f) verts[i] = n * (radius - sink);
+                var kept = new List<int>(surface.Count);
+                var gone = new HashSet<long>();
+                for (int t = 0; t < surface.Count; t += 3)
+                {
+                    int a = surface[t], b = surface[t + 1], c = surface[t + 2];
+                    if (inside[a] || inside[b] || inside[c])
+                    {
+                        gone.Add(EdgeKey(a, b));
+                        gone.Add(EdgeKey(b, c));
+                        gone.Add(EdgeKey(c, a));
+                    }
+                    else
+                    {
+                        kept.Add(a); kept.Add(b); kept.Add(c);
+                    }
+                }
+
+                if (gone.Count == 0)
+                {
+                    Debug.LogWarning("[Boloos] La boca de un agujero no llega a tocar la malla de la bola.");
+                    continue;
+                }
+
+                float yRim = Mathf.Sqrt(Mathf.Max(radius * radius - rh * rh, 0f));
+                var rimSurface = new Dictionary<int, int>();
+                var rimBore = new Dictionary<int, int>();
+                var bottom = new Dictionary<int, int>();
+
+                int center = verts.Count;
+                verts.Add(d * (yRim - depth));
+                uvs.Add(SphericalUV(d));
+
+                var band = new List<int>();
+                for (int t = 0; t < kept.Count; t += 3)
+                {
+                    int a = kept[t], b = kept[t + 1], c = kept[t + 2];
+                    Stitch(verts, uvs, band, bore, gone, rimSurface, rimBore, bottom, center, a, b, d, rh, yRim, depth);
+                    Stitch(verts, uvs, band, bore, gone, rimSurface, rimBore, bottom, center, b, c, d, rh, yRim, depth);
+                    Stitch(verts, uvs, band, bore, gone, rimSurface, rimBore, bottom, center, c, a, d, rh, yRim, depth);
+                }
+
+                kept.AddRange(band);
+                surface = kept;
             }
 
-            mesh.vertices = verts;
+            mesh.Clear();
+            mesh.SetVertices(verts);
+            mesh.SetUVs(0, uvs);
+            mesh.subMeshCount = 2;
+            mesh.SetTriangles(surface, 0);
+            mesh.SetTriangles(bore, 1);
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
         }
 
+        /// <summary>Cose una arista del borde del corte al aro y baja la pared.</summary>
+        static void Stitch(List<Vector3> verts, List<Vector2> uvs, List<int> band, List<int> bore,
+                           HashSet<long> gone, Dictionary<int, int> rimSurface, Dictionary<int, int> rimBore,
+                           Dictionary<int, int> bottom, int center,
+                           int u, int v, Vector3 d, float rh, float yRim, float depth)
+        {
+            // Frontera solo si al otro lado habia un triangulo que se ha quitado.
+            if (!gone.Contains(EdgeKey(v, u))) return;
+
+            int su = Rim(verts, uvs, rimSurface, u, d, rh, yRim, 0f);
+            int sv = Rim(verts, uvs, rimSurface, v, d, rh, yRim, 0f);
+            int bu = Rim(verts, uvs, rimBore, u, d, rh, yRim, 0f);
+            int bv = Rim(verts, uvs, rimBore, v, d, rh, yRim, 0f);
+            int fu = Rim(verts, uvs, bottom, u, d, rh, yRim, depth);
+            int fv = Rim(verts, uvs, bottom, v, d, rh, yRim, depth);
+
+            // banda del borde irregular al aro, con la cara hacia fuera
+            band.Add(u); band.Add(su); band.Add(sv);
+            band.Add(u); band.Add(sv); band.Add(v);
+
+            // pared del taladro, mirando hacia dentro, y el fondo
+            bore.Add(bu); bore.Add(fu); bore.Add(bv);
+            bore.Add(bv); bore.Add(fu); bore.Add(fv);
+            bore.Add(center); bore.Add(fv); bore.Add(fu);
+        }
+
+        /// <summary>
+        /// Proyecta un vertice del borde sobre el circulo del agujero, a la
+        /// profundidad pedida. Cada tabla guarda su copia para que el aro quede
+        /// vivo y RecalculateNormals no lo redondee.
+        /// </summary>
+        static int Rim(List<Vector3> verts, List<Vector2> uvs, Dictionary<int, int> cache,
+                       int index, Vector3 d, float rh, float yRim, float sink)
+        {
+            int existing;
+            if (cache.TryGetValue(index, out existing)) return existing;
+
+            Vector3 v = verts[index];
+            Vector3 perp = v - d * Vector3.Dot(v, d);
+            perp = perp.sqrMagnitude > 1e-12f ? perp.normalized : Vector3.Cross(d, Vector3.right).normalized;
+
+            int created = verts.Count;
+            verts.Add(perp * rh + d * (yRim - sink));
+            uvs.Add(SphericalUV(perp * rh + d * yRim));
+            cache[index] = created;
+            return created;
+        }
+
+        static Vector2 SphericalUV(Vector3 v)
+        {
+            Vector3 n = v.normalized;
+            return new Vector2(Mathf.Atan2(n.z, n.x) / (Mathf.PI * 2f) + 0.5f,
+                               1f - Mathf.Acos(Mathf.Clamp(n.y, -1f, 1f)) / Mathf.PI);
+        }
+
+        static long EdgeKey(int a, int b)
+        {
+            return ((long)a << 32) | (uint)b;
+        }
+
+        /// <summary>Direccion de un agujero: inclinacion desde el polo y giro alrededor de el.</summary>
         static Vector3 HoleDirection(float tiltDegrees, float yawDegrees)
         {
             float t = tiltDegrees * Mathf.Deg2Rad;

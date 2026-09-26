@@ -42,11 +42,12 @@ namespace Boloos
                         Mathf.PerlinNoise(board * 13.1f + inBoard * 3f + seed, v * 34f) * 0.6f +
                         Mathf.PerlinNoise(board * 27.3f + inBoard * 9f, v * 150f) * 0.4f;
 
-                    // junta oscura entre tablas
-                    float edge = Mathf.Min(inBoard, 1f - inBoard) * boards / 12f;
-                    float seam = Mathf.SmoothStep(0.35f, 1f, Mathf.Clamp01(edge));
+                    // Junta oscura entre tablas: una linea fina en el 5% de los
+                    // bordes. Mas ancha y la pista parece chapa ondulada.
+                    float edge = Mathf.Min(inBoard, 1f - inBoard) / 0.05f;
+                    float seam = Mathf.SmoothStep(0.40f, 1f, Mathf.Clamp01(edge));
 
-                    Color c = Color.Lerp(lo, hi, Mathf.Clamp01(tint * 0.55f + grain * 0.45f));
+                    Color c = Color.Lerp(lo, hi, Mathf.Clamp01(tint * 0.70f + grain * 0.30f));
                     c *= seam;
                     c.a = 1f;
                     px[y * width + x] = c;
