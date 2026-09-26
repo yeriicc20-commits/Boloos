@@ -44,6 +44,15 @@ namespace Boloos
             }
         }
 
+        /// <summary>
+        /// Olvida el shader cacheado. Hay que llamarlo si cambia el pipeline
+        /// activo, o se seguiria creando material con el shader del anterior.
+        /// </summary>
+        public static void ResetShaderCache()
+        {
+            s_lit = null;
+        }
+
         public static Material Create(string name, Color color, float smoothness = 0.35f, float metallic = 0f,
                                       Texture texture = null, Vector2? tiling = null)
         {

@@ -56,27 +56,41 @@ borrarlos antes de construir la bolera de verdad.
 - `BoloosBuilderWindow` — la ventana de construccion.
 - `BoloosSceneAudit` — el detector de placeholders.
 - `BoloosMaterialRepair` — el reparador de materiales rosas.
+- `BoloosAutoRepair` — lo lanza solo al abrir, al importar y al compilar.
 
 ## Si todo se ve rosa fucsia
 
 El rosa de Unity no es una textura que falte (eso sale blanco): es un material
 cuyo shader es nulo o no compilo, pintado con `Hidden/InternalErrorShader`.
-Hay dos causas, y se distinguen por donde se ve el rosa:
 
-- **Rosa tambien en el editor** → el material usa un shader de otro pipeline,
-  por ejemplo `Standard` en un proyecto URP. Menu
-  **Boloos > Reparar materiales rosas**: cambia el shader al del pipeline
-  activo conservando color, textura y acabado. (Unity trae su propio
-  conversor en *Window > Rendering > Render Pipeline Converter*; el de aqui
-  cubre ademas los materiales creados por codigo.)
-- **Rosa solo en la build, bien en el editor** → el shader se esta quedando
-  fuera al compilar. `Shader.Find` solo encuentra shaders incluidos en la
-  build, y un material creado en tiempo de ejecucion no lo referencia desde
-  ningun asset, asi que Unity lo descarta. Menu
-  **Boloos > Incluir shaders en la build**, que lo anade a *Always Included
-  Shaders*, y vuelve a compilar.
+**No hay que hacer nada**: con estos scripts en el proyecto, la reparacion se
+lanza sola al abrir Unity, al recompilar, al importar materiales y al compilar
+una build. Solo escribe en consola si ha cambiado algo. Se desactiva en
+**Boloos > Reparar materiales automaticamente**.
 
-La forma limpia de evitar el segundo caso es construir la bolera desde el
+Cubre las tres causas, y las distingue antes de tocar nada:
+
+1. **El proyecto es URP o HDRP pero no tiene el asset del pipeline asignado.**
+   Es la causa mas comun y la mas facil de empeorar: convertir los materiales a
+   `Standard` quitaria el rosa cargandose el proyecto entero. Se detecta por
+   evidencia (hay un `RenderPipelineAsset` en `Assets/` y los materiales usan
+   sobre todo shaders de URP o HDRP) y se arregla asignando el pipeline en
+   Graphics y Quality Settings, sin convertir ni un material.
+2. **Materiales con un shader de otro pipeline**, por ejemplo `Standard` dentro
+   de un proyecto URP. Se les cambia el shader al Lit del pipeline activo
+   conservando color, textura, tiling y acabado. Los valores se leen de
+   `m_SavedProperties`, no del material vivo: un material con el shader roto no
+   responde a `HasProperty` y la reparacion dejaria todo blanco.
+   Nunca se tocan los de interfaz, sprites, texto, cielo ni los de `Packages/`.
+3. **Rosa solo en la build, bien en el editor.** El shader se queda fuera al
+   compilar: `Shader.Find` solo encuentra shaders incluidos en la build, y un
+   material creado en tiempo de ejecucion no lo referencia desde ningun asset.
+   Se anade solo a *Always Included Shaders* antes de cada build.
+
+Los tres tienen tambien su menu manual: **Boloos > Reparar materiales rosas** y
+**Boloos > Incluir shaders en la build**.
+
+La forma limpia de no pisar el tercer caso es construir la bolera desde el
 editor (**Boloos > Construir bolera**) en vez de en tiempo de ejecucion: asi los
 materiales quedan guardados como assets en `Assets/Boloos/Generated` y sus
 shaders entran solos en la build.

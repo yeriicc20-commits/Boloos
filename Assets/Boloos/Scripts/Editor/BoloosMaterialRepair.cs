@@ -21,23 +21,49 @@ namespace Boloos.EditorTools
     /// </summary>
     public static class BoloosMaterialRepair
     {
-        /// <summary>Shaders de Built-in que en URP o HDRP salen rosas.</summary>
+        /// <summary>Shaders de Built-in que dentro de URP o HDRP salen rosas.</summary>
         static readonly string[] BuiltInShaders =
         {
             "Standard", "Standard (Specular setup)", "Autodesk Interactive",
-            "Legacy Shaders/Diffuse", "Legacy Shaders/Bumped Diffuse",
-            "Legacy Shaders/Specular", "Legacy Shaders/Transparent/Diffuse",
-            "Mobile/Diffuse", "Mobile/Bumped Diffuse", "Diffuse", "Specular"
+            "Diffuse", "Specular", "Bumped Diffuse", "Bumped Specular", "VertexLit"
+        };
+
+        /// <summary>Familias enteras de Built-in que tampoco sobreviven al cambio.</summary>
+        static readonly string[] BuiltInFamilies =
+        {
+            "Legacy Shaders/", "Mobile/", "Nature/", "Reflective/", "Transparent/", "Self-Illumin/"
+        };
+
+        /// <summary>
+        /// Estas funcionan igual en los tres pipelines: tocarlas seria romper
+        /// interfaz, sprites, cielo o texto.
+        /// </summary>
+        static readonly string[] Untouchable =
+        {
+            "UI/", "Sprites/", "TextMeshPro/", "Skybox/", "Hidden/", "GUI/", "Particles/Standard"
         };
 
         [MenuItem("Boloos/Reparar materiales rosas")]
-        public static void Repair()
+        public static void RepairFromMenu()
         {
+            Repair(true);
+        }
+
+        /// <summary>Repara y devuelve cuantos materiales ha tocado.</summary>
+        public static int Repair(bool verbose)
+        {
+            // Antes de tocar un solo material: si el proyecto es URP o HDRP y
+            // simplemente ha perdido la referencia al asset del pipeline, todo
+            // sale rosa y convertir los materiales a Standard seria cargarse el
+            // proyecto. En ese caso se asigna el pipeline y no hay nada mas que
+            // reparar.
+            if (EnsurePipelineAssigned(verbose)) return 0;
+
             Shader target = AlleyMaterials.LitShader;
             if (target == null)
             {
                 Debug.LogError("[Boloos] No hay shader al que reparar: no se encuentra el Lit del pipeline activo.");
-                return;
+                return 0;
             }
 
             var broken = new List<Material>();
@@ -45,6 +71,7 @@ namespace Boloos.EditorTools
 
             foreach (Material material in Materials())
             {
+                if (!IsEditable(material)) continue;
                 if (AlleyMaterials.IsBroken(material)) broken.Add(material);
                 else if (IsForeignPipeline(material)) wrongPipeline.Add(material);
             }
@@ -52,6 +79,8 @@ namespace Boloos.EditorTools
             int repaired = 0;
             repaired += Retarget(broken, target);
             repaired += Retarget(wrongPipeline, target);
+
+            if (!verbose && repaired == 0) return 0;
 
             var report = new StringBuilder();
             report.AppendLine("[Boloos] Reparacion de materiales");
@@ -65,11 +94,35 @@ namespace Boloos.EditorTools
                 report.AppendLine();
                 report.AppendLine("  Ningun material del proyecto esta roto. Si en la build");
                 report.AppendLine("  sale rosa pero en el editor no, el shader se esta quedando");
-                report.AppendLine("  fuera al compilar: usa Boloos > Incluir shaders en la build.");
+                report.AppendLine("  fuera al compilar: se arregla solo al compilar, o a mano");
+                report.AppendLine("  con Boloos > Incluir shaders en la build.");
             }
 
             Debug.Log(report.ToString());
-            AssetDatabase.SaveAssets();
+            if (repaired > 0) AssetDatabase.SaveAssets();
+            return repaired;
+        }
+
+        /// <summary>Repara una lista concreta de materiales, para el importador.</summary>
+        public static int RepairSpecific(IEnumerable<Material> materials)
+        {
+            Shader target = AlleyMaterials.LitShader;
+            if (target == null) return 0;
+
+            var broken = new List<Material>();
+            foreach (Material material in materials)
+            {
+                if (material == null || !IsEditable(material)) continue;
+                if (AlleyMaterials.IsBroken(material) || IsForeignPipeline(material)) broken.Add(material);
+            }
+
+            int repaired = Retarget(broken, target);
+            if (repaired > 0)
+            {
+                Debug.Log("[Boloos] " + repaired + " material(es) recien importados reparados al shader del pipeline activo.");
+                AssetDatabase.SaveAssets();
+            }
+            return repaired;
         }
 
         /// <summary>
@@ -78,7 +131,12 @@ namespace Boloos.EditorTools
         /// ejecutar: si no, el shader no entra en la build.
         /// </summary>
         [MenuItem("Boloos/Incluir shaders en la build")]
-        public static void AlwaysInclude()
+        public static void AlwaysIncludeFromMenu()
+        {
+            AlwaysInclude(true);
+        }
+
+        public static void AlwaysInclude(bool verbose)
         {
             Shader shader = AlleyMaterials.LitShader;
             if (shader == null)
@@ -106,7 +164,7 @@ namespace Boloos.EditorTools
             {
                 if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader)
                 {
-                    Debug.Log("[Boloos] " + shader.name + " ya estaba incluido en la build.");
+                    if (verbose) Debug.Log("[Boloos] " + shader.name + " ya estaba incluido en la build.");
                     return;
                 }
             }
@@ -119,6 +177,52 @@ namespace Boloos.EditorTools
 
             Debug.Log("[Boloos] " + shader.name + " anadido a Always Included Shaders. " +
                       "Vuelve a compilar la build.");
+        }
+
+        /// <summary>
+        /// Comprueba si el rosa viene de que no hay pipeline asignado teniendo el
+        /// proyecto uno. Se decide con evidencia: si los materiales del proyecto
+        /// usan sobre todo shaders de URP o HDRP, lo que falta es asignar el
+        /// asset, no convertir nada.
+        /// </summary>
+        static bool EnsurePipelineAssigned(bool verbose)
+        {
+            if (GraphicsSettings.currentRenderPipeline != null) return false;
+
+            RenderPipelineAsset candidate = null;
+            foreach (string guid in AssetDatabase.FindAssets("t:RenderPipelineAsset"))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.StartsWith("Assets/")) continue;
+
+                var asset = AssetDatabase.LoadAssetAtPath<RenderPipelineAsset>(path);
+                if (asset != null) { candidate = asset; break; }
+            }
+            if (candidate == null) return false;
+
+            int scriptable = 0, builtIn = 0;
+            foreach (Material material in Materials())
+            {
+                if (!IsEditable(material) || material.shader == null) continue;
+
+                string name = material.shader.name;
+                if (name.StartsWith("Universal Render Pipeline/") || name.StartsWith("HDRP/") ||
+                    name.StartsWith("Shader Graphs/")) scriptable++;
+                else if (name == "Standard" || name.StartsWith("Legacy Shaders/")) builtIn++;
+            }
+
+            if (scriptable <= builtIn) return false;
+
+            GraphicsSettings.defaultRenderPipeline = candidate;
+            QualitySettings.renderPipeline = candidate;
+            AlleyMaterials.ResetShaderCache();
+            AssetDatabase.SaveAssets();
+
+            Debug.Log("[Boloos] El proyecto no tenia pipeline asignado y sus materiales son de " +
+                      "render pipeline (" + scriptable + " frente a " + builtIn + " de Built-in). " +
+                      "Asignado " + candidate.name + " en Graphics y Quality Settings: esa era la causa del rosa. " +
+                      "No se ha convertido ningun material.");
+            return true;
         }
 
         /// <summary>Lista los materiales del proyecto y los de la escena abierta.</summary>
@@ -148,13 +252,34 @@ namespace Boloos.EditorTools
         static bool IsForeignPipeline(Material material)
         {
             if (GraphicsSettings.currentRenderPipeline == null) return false;
+            if (material.shader == null) return false;
 
             string name = material.shader.name;
+
+            for (int i = 0; i < Untouchable.Length; i++)
+            {
+                if (name.StartsWith(Untouchable[i])) return false;
+            }
             for (int i = 0; i < BuiltInShaders.Length; i++)
             {
                 if (name == BuiltInShaders[i]) return true;
             }
+            for (int i = 0; i < BuiltInFamilies.Length; i++)
+            {
+                if (name.StartsWith(BuiltInFamilies[i])) return true;
+            }
             return false;
+        }
+
+        /// <summary>
+        /// Solo se tocan materiales del proyecto o de la escena. Los de Packages
+        /// y los internos de Unity son de solo lectura.
+        /// </summary>
+        static bool IsEditable(Material material)
+        {
+            string path = AssetDatabase.GetAssetPath(material);
+            if (string.IsNullOrEmpty(path)) return true;           // material de escena
+            return path.StartsWith("Assets/");
         }
 
         /// <summary>
