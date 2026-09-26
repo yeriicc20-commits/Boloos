@@ -58,6 +58,47 @@ borrarlos antes de construir la bolera de verdad.
 - `BoloosMaterialRepair` — el reparador de materiales rosas.
 - `BoloosAutoRepair` — lo lanza solo al abrir, al importar y al compilar.
 
+## Multijugador: una pista entera por jugador
+
+`BoloosMatch` reparte pistas. Cuando entra alguien se le da una libre y, si no
+queda ninguna, **se construye una nueva en marcha** con la misma paleta y las
+mismas medidas, asi que le sale identica: superficie de 39 tablas, canaletas,
+flechas, los 10 bolos, foso, su maquina de retorno y su estante con bolas.
+Nadie comparte pista con nadie.
+
+Al entrar, el jugador recibe ademas su personaje (generado por codigo, con un
+color de camiseta distinto por jugador) plantado en su aproximacion, y su propia
+puntuacion.
+
+```csharp
+// desde tu capa de red, al conectarse y al desconectarse un cliente:
+BoloosPlayer player = match.Join(nombreDelCliente, isLocal: esMiCliente);
+match.Leave(player);
+```
+
+`BoloosMatch` no sabe nada de red a proposito: funciona igual sin ella, y una
+capa de Netcode, Mirror o Photon solo tiene que llamar a `Join` y `Leave`, y
+replicar la posicion del personaje y los tiros.
+
+- `BoloosMatch` — reparte pistas, crea las que falten, avisa con
+  `playerJoined` y `playerLeft`.
+- `BoloosPlayer` — su pista, su puntuacion, y el ciclo de una jugada: espera a
+  que la bola y los bolos se paren, cuenta los derribados, apunta el tiro y
+  replanta o retira los caidos segun toque.
+- `BoloosPlayerController` — control en primera persona del jugador local:
+  andar, mirar, coger bola del estante y lanzar cargando fuerza. La camara solo
+  se crea para el jugador local. Todo pasa por metodos publicos
+  (`SetMove`, `SetLook`, `PickUp`, `BeginThrow`, `EndThrow`), asi que vale con
+  cualquier sistema de entrada.
+- `PlayerFactory` — el personaje: 1,75 m, con su `CharacterController`, el punto
+  de vista a la altura de los ojos y la mano de la que sale la bola.
+- `BowlingScore` — puntuacion de 10 frames con plenos, semiplenos y el decimo.
+  No es un MonoBehaviour: se puede probar y sincronizar por red tal cual.
+
+Ojo con una cosa: si construyes la bolera en tiempo de ejecucion (que es lo que
+hace `BoloosMatch`), los materiales se crean por codigo y el shader tiene que
+estar incluido en la build. De eso se encarga solo el apartado siguiente.
+
 ## Si todo se ve rosa fucsia
 
 El rosa de Unity no es una textura que falte (eso sale blanco): es un material

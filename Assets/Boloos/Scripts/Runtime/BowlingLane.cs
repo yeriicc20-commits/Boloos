@@ -33,16 +33,31 @@ namespace Boloos
         /// <param name="spin">Efecto lateral, en vueltas por segundo.</param>
         public BowlingBall Throw(float lateralOffset = 0f, float speed = 8f, float spin = 0f)
         {
+            Transform origin = releasePoint != null ? releasePoint : transform;
+            Vector3 position = origin.position + transform.right * lateralOffset;
+            return ThrowFrom(position, transform.forward * speed, spin);
+        }
+
+        /// <summary>
+        /// Lanza desde un punto y con una velocidad cualesquiera: es lo que usa
+        /// el jugador para apuntar desde donde este plantado.
+        /// La bola sale del estante de esta pista, no de la nada.
+        /// </summary>
+        public BowlingBall ThrowFrom(Vector3 position, Vector3 velocity, float spin = 0f)
+        {
             BowlingBall ball = rack != null ? rack.Take() : null;
             if (ball == null) return null;
 
-            Transform origin = releasePoint != null ? releasePoint : transform;
-            Vector3 position = origin.position + transform.right * lateralOffset;
             position.y = transform.position.y + AlleySpec.BallRadius + 0.01f;
-
             ball.transform.position = position;
-            ball.Launch(transform.forward * speed, spin);
+            ball.Launch(velocity, spin);
             return ball;
+        }
+
+        /// <summary>Pasa un punto del mundo a coordenadas de pista (X lateral, Z a lo largo).</summary>
+        public Vector3 ToLaneSpace(Vector3 worldPosition)
+        {
+            return transform.InverseTransformPoint(worldPosition);
         }
 
         void OnDrawGizmosSelected()

@@ -20,6 +20,10 @@ namespace Boloos
         public bool buildHouse = true;
         public bool addDemoController = true;
         public int seed = 7;
+
+        [Tooltip("Pistas para las que se dimensiona el local. 0 = las mismas que se construyen. " +
+                 "Se sube cuando van a anadirse pistas en marcha, para que tengan suelo debajo.")]
+        public int houseLanes;
     }
 
     /// <summary>Lo que devuelve la construccion: la jerarquia y los recursos generados.</summary>
@@ -101,7 +105,11 @@ namespace Boloos
         // Materiales compartidos
         // ==================================================================
 
-        class Palette
+        /// <summary>
+        /// Mallas y materiales compartidos por todas las pistas. Se crean una vez
+        /// y se reutilizan, asi que una pista nueva sale identica a las demas.
+        /// </summary>
+        public class Palette
         {
             public Material lane, approach, gutter, pin, pit, metal, machine, rubber, foulLine, arrow, carpet, wall, neon;
             public PhysMat lanePhysics, ballPhysics, pinPhysics, gutterPhysics;
@@ -109,7 +117,7 @@ namespace Boloos
             public Vector2[] pinProfile;
         }
 
-        static Palette CreatePalette(AlleyBuildResult r, int seed)
+        public static Palette CreatePalette(AlleyBuildResult r, int seed)
         {
             var p = new Palette();
 
@@ -166,7 +174,12 @@ namespace Boloos
         // Pista
         // ==================================================================
 
-        static void BuildLane(AlleyBuildResult r, Palette p, AlleyBuildSettings s, int index)
+        /// <summary>
+        /// Construye la pista numero <paramref name="index"/> completa: superficie,
+        /// canaletas, flechas, aproximacion, foso, bolos y maquina de retorno.
+        /// Se puede llamar en marcha para anadir una pista mas.
+        /// </summary>
+        public static BowlingLane BuildLane(AlleyBuildResult r, Palette p, AlleyBuildSettings s, int index)
         {
             var laneGo = new GameObject("Pista " + (index + 1));
             laneGo.transform.SetParent(r.root.transform, false);
@@ -247,6 +260,7 @@ namespace Boloos
             }
 
             r.lanes.Add(lane);
+            return lane;
         }
 
         static void BuildPitArea(AlleyBuildResult r, Palette p, Transform parent, float laneEnd)
@@ -711,14 +725,15 @@ namespace Boloos
         // Local
         // ==================================================================
 
-        static void BuildHouse(AlleyBuildResult r, Palette p, AlleyBuildSettings s)
+        public static void BuildHouse(AlleyBuildResult r, Palette p, AlleyBuildSettings s)
         {
             var house = new GameObject("Local");
             house.transform.SetParent(r.root.transform, false);
 
-            float width = s.laneCount * AlleySpec.LanePitch + 4f;
+            int lanes = Mathf.Max(s.laneCount, s.houseLanes);
+            float width = lanes * AlleySpec.LanePitch + 4f;
             float length = AlleySpec.LaneLength + AlleySpec.PitLength + AlleySpec.ApproachLength + 8f;
-            float centerX = (s.laneCount - 1) * AlleySpec.LanePitch * 0.5f;
+            float centerX = (lanes - 1) * AlleySpec.LanePitch * 0.5f;
             float centerZ = (AlleySpec.LaneLength + AlleySpec.PitLength - AlleySpec.ApproachLength - 6f) * 0.5f;
 
             Mesh floor = r.Track(MeshBuilder.Quad(width, length, new Vector2(width / 3f, length / 3f), "BoloosFloor"));
@@ -733,7 +748,7 @@ namespace Boloos
                 new Vector3(centerX, 2.25f - AlleySpec.LaneThickness, -AlleySpec.ApproachLength - 5.8f), wall, p.wall);
 
             // luces sobre las pistas
-            for (int i = 0; i < s.laneCount; i++)
+            for (int i = 0; i < lanes; i++)
             {
                 for (int j = 0; j < 3; j++)
                 {
@@ -752,7 +767,7 @@ namespace Boloos
 
             // marcador iluminado al fondo de cada pista
             Mesh screen = r.Track(MeshBuilder.Box(new Vector3(AlleySpec.LaneWidth, 0.7f, 0.06f), "BoloosScoreScreen"));
-            for (int i = 0; i < s.laneCount; i++)
+            for (int i = 0; i < lanes; i++)
             {
                 Piece("Marcador " + (i + 1), house.transform,
                     new Vector3(i * AlleySpec.LanePitch, 2.6f, AlleySpec.LaneLength + AlleySpec.PitLength + 1.05f),
