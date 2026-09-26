@@ -1,0 +1,27 @@
+# Normalizacion de finales de linea
+* text=auto
+
+# Los assets serializados de Unity son YAML: se tratan como texto sin conversion,
+# para que Git no corrompa los saltos de linea ni los GUID.
+*.meta   -text diff
+*.unity  -text diff
+*.asset  -text diff
+*.prefab -text diff
+*.mat    -text diff
+*.anim   -text diff
+*.controller -text diff
+
+# Binarios: nunca convertir.
+*.fbx  binary
+*.obj  binary
+*.blend binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.tga  binary
+*.psd  binary
+*.wav  binary
+*.mp3  binary
+*.ogg  binary
+*.ttf  binary
+*.otf  binary
